@@ -1,0 +1,217 @@
+---
+title: "Lecture 14: Regression Trees"
+output:
+  html_document:
+    toc: true
+    toc_depth: 4
+    toc_float: true
+    theme: simplex
+    number_sections: false
+---
+
+```{r global_options, include = FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+```
+
+## 1 creating a data frame 
+
+### 1.1 load the data  
+```{r}
+# read the data 
+car.df <- read.csv("ToyotaCorolla.csv")
+
+# first six rows
+head(car.df)
+
+# convert a character variable to a categorical variable 
+car.df$Fuel_Type <- as.factor(car.df$Fuel_Type)
+```
+
+### 1.2 data partition
+```{r}
+# total number of rows 
+dim(car.df)[1]
+
+# number of rows of the training set 
+dim(car.df)[1]*0.6
+
+# set seed for reproducing the partition
+set.seed(1) 
+
+# row numbers of the training set
+train.index <- sample(c(1:dim(car.df)[1]), dim(car.df)[1]*0.6)  
+head(train.index)
+
+# training set
+train.df <- car.df[train.index,]
+head(train.df)
+
+# test set 
+test.df <- car.df[-train.index,]
+head(test.df)
+```
+
+## 2 fitting a deeper regression tree 
+
+### 2.1 run a regression tree
+```{r}
+library(rpart)
+rt.deep <- rpart(Price ~  Age_08_04 + KM + Fuel_Type + HP + Automatic + Doors + Quarterly_Tax + Mfr_Guarantee + 
+              Guarantee_Period + Airco + Automatic_airco + CD_Player + Powered_Windows + Sport_Model + Tow_Bar, 
+              data = train.df, method = "anova", minbucket = 1, maxdepth = 30, cp = 0.001)
+# minbucket: the minimum number of observations in any terminal node 
+# maxdepth: the maximum depth of any node of the final tree, with the root node counted as depth 0.
+# complexity parameter (cp): the smallest value of the complexity parameter
+```
+
+### 2.2 plot the tree
+```{r}
+library(rpart.plot)
+
+# type=1: label all nodes, not just leaves
+# extra=1: display the number of observations that fall in the node
+prp(rt.deep, type = 1, extra = 1)
+```
+
+### 2.3 predict prices for records in the test set 
+```{r}
+rt.deep.pred.price <- predict(rt.deep, test.df,type="vector")
+# type="vector" : a vector of predicted prices 
+
+head(rt.deep.pred.price)
+```
+
+### 2.4 predictive performance on the test set 
+```{r}
+mean((test.df$Price-rt.deep.pred.price)^2)
+```
+
+## 3 fitting a shallower regression tree using default parameters 
+
+### 3.1 run a regression tree
+```{r}
+rt.shallow <- rpart(Price ~  Age_08_04 + KM + Fuel_Type + HP + Automatic + Doors + Quarterly_Tax + Mfr_Guarantee + 
+                  Guarantee_Period + Airco + Automatic_airco + CD_Player + Powered_Windows + Sport_Model + Tow_Bar, 
+                  data = train.df, method = "anova")
+# using the default values: minbucket=7, maxdepth=30, and cp=0.01
+```
+
+### 3.2 plot the tree
+```{r}
+# type=1: label all nodes, not just leaves
+# extra=1: display the number of observations that fall in the node
+# digits=-3: use the standard format in displayed numbers
+prp(rt.shallow, type = 1, extra = 1, digits=-3)
+```
+
+### 3.3 predict prices for records in the test set 
+```{r}
+rt.shallow.pred.price <- predict(rt.shallow, test.df,type="vector")
+# type="vector" : a vector of predicted prices 
+
+head(rt.shallow.pred.price)
+```
+
+### 3.4 predictive performance on the test set 
+```{r}
+mean((test.df$Price-rt.shallow.pred.price)^2)
+```
+
+## 4 classification tree
+
+### 4.1 identify the thresholds of 20 equal width bins 
+```{r}
+# minimum price 
+min(car.df$Price)
+
+# maximum price 
+max(car.df$Price)
+
+# width of each bin 
+width <- (max(car.df$Price) - min(car.df$Price))/20
+width
+
+bins <- seq(min(car.df$Price), max(car.df$Price), (max(car.df$Price) - min(car.df$Price))/20)
+
+# 21 thresholds 
+bins
+```
+
+### 4.2 bin price and return integers 
+```{r}
+Binned_Price <- .bincode(car.df$Price, bins, include.lowest = TRUE)
+
+# bin numbers are integers 
+head(Binned_Price )
+```
+
+### 4.3 convert the bin number to a categorical variable  
+```{r}
+# convert Binned_Price to a factor/categorical variable 
+Binned_Price <- as.factor(Binned_Price)
+head(Binned_Price)
+
+# 17 factor levels 
+table(train.df$Binned_Price)
+
+# categorical outcome variable of the training set 
+train.df$Binned_Price <- Binned_Price[train.index]
+head(train.df$Binned_Price)
+
+# categorical outcome variable of the test set 
+test.df$Binned_Price <- Binned_Price[-train.index]
+head(test.df$Binned_Price)
+
+# fit a classification tree  
+ct <- rpart(Binned_Price ~  Age_08_04 + KM + Fuel_Type + HP + Automatic + Doors + Quarterly_Tax + Mfr_Guarantee + 
+          Guarantee_Period + Airco + Automatic_airco + CD_Player + Powered_Windows + Sport_Model + Tow_Bar, 
+          data = train.df, method='class')
+# method='class' for classification trees 
+
+# plot the tree
+# type=1: label all nodes, not just leaves
+# extra=1;display the number of observations that fall in the node
+prp(ct, type = 1, extra = 1)
+```
+
+### 4.4 predicted bin number 
+```{r}
+# type = "class": generate predicted classes 
+ct.pred.bin <- predict(ct, test.df, type = "class")
+head(ct.pred.bin )
+```
+
+### 4.5 predicted prices for records in the test set  
+
+#### 4.5.1 an observation with Binned_Price=20
+```{r}
+# an observation in the training set with bin=20
+train.df$Binned_Price[561]
+
+# lower bound 
+bins[20]
+# correct way to convert a factor to a numeric variable 
+bins[as.numeric(as.character(train.df$Binned_Price[561]))]
+# wrong way of converting factors to numeric (bin 20 becomes bin 17)
+bins[train.df$Binned_Price[561]]
+bins[17]
+
+# upper bound 
+bins[21]
+bins[as.numeric(as.character(train.df$Binned_Price[561]))+1]
+```
+
+#### 4.5.2 records in the test set
+```{r}
+# lower bound 
+head(bins[as.numeric(as.character(ct.pred.bin))])
+
+# upper bound 
+head(bins[as.numeric(as.character(ct.pred.bin))+1])
+
+# midpoint of each bin 
+ct.pred.price <- (bins[as.numeric(as.character(ct.pred.bin))]+bins[as.numeric(as.character(ct.pred.bin))+1])/2
+head(ct.pred.price )
+# or 
+head(bins[as.numeric(as.character(ct.pred.bin))]+width/2)
+```

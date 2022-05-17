@@ -1,0 +1,351 @@
+---
+title: "Lecture 2: Introduction to R programming"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    theme: simplex
+    fig_caption: true
+    number_sections: true
+---
+
+# FIN 510 setup for this lecture
+
+This lecture assumes that you are running RStudio on an Amazon EC2 instance created from AMI `FIN510-RStudio` with IAM role `FIN510EC2Role`.
+
+On your EC2 instance, create a folder for today's lecture. In the RStudio File window, create a New Folder in your Home directory, and name the folder `fin510`. Inside this folder, create a new subdirectory called `lecture-02`. The path to this directory is `~/fin510/lecture-02`, where the tilde (`~`) character refers to your Home directory.
+
+For today's class, copy the file `lecture-02-tryit.Rmd` from the course S3 bucket, `s3://bigdata-fin510`, to `~/fin510/lecture-02` using the following [AWS Command Line Interface (CLI)](https://aws.amazon.com/cli/#file_commands_anchor) command. This is a Unix command, not an R command, and thus must be passed directly to the operating system. RStudio allows you to execute operating system commands using the built-in shell, found at `Tools` \> `Shell`.
+
+```{bash, eval=FALSE}
+# This is a Unix command. Enter via RStudio Shell
+aws s3 cp --recursive s3://bigdata-fin510/lecture-02 ~/fin510/lecture-02
+```
+
+# Introduction to R and RStudio
+
+## What is R?
+
+R is an open source (free) programming language that is popular among statisticians, quantitative analysts, and data scientists for data analytics. Many powerful data manipulation and analysis tools are available in R through add-on packages that extend base R functionality. As a result, the R programming environment continues to evolve and expand.
+
+## What is RStudio?
+
+RStudio is an integrated development environment (IDE), that facilitates R programming. RStudio includes a code editor, console, file explorer, visualization tools, and many other features that facilitate R programming. In this class, we will use the RStudio Server edition which runs on a remote server with access via a web browser. You can also [install](https://www.rstudio.com/products/rstudio/download/) and run the RStudio Desktop edition on your desktop (Windows, Mac, and Linux). However, many exercises we do in class assume you are using RStudio on a server running within the AWS cloud computing ecosystem.
+
+## Getting help with R and RStudio
+
+Many helpful resources for R programming and RStudio functionality can be found within RStudio itself.
+
+-   You can learn about R functions, data sets, and packages by using the `?` help operator. To learn about function `foo`, type `?foo` in the Console and press Ctrl+Enter. **Try it: what does the `lm` function do?**
+-   If you do not know the exact name of the function you are looking for, you can search the R help documentation using the `??` help search operator. To search for the term `foo`, type `??foo` in the Console and press Ctrl+Enter. If your search term contains spaces, contain the phrase in quotes, like `??"foo fighters"`. **Try it: what do you get for searching for the term `model`? How about the phrase `linear model`?**
+-   Another excellent way to find help is to use an internet search engine. The ability to find help online is crucial skill for any programmer or data scientist.
+-   RStudio has a number of "cheat sheets" that make it easy to learn or use common R packages and RStudio functionality. These cheat sheets can be found [online](https://www.rstudio.com/resources/cheatsheets/) or from within RStudio by going to Help \> Cheatsheets.
+
+## Console vs. Script
+
+The [RStudio Console](https://support.rstudio.com/hc/en-us/articles/200404846-Working-in-the-Console) allows you to enter R commands interactively, much as you would with a high-powered calculator. You can retrieve previous commands using the `↑` (up arrow) and `↓` (down arrow) keys.
+
+RStudio has many keyboard shortcuts to facilitate programming. What does the shortcut `Alt+Shift+K` do?
+
+In this class, we will use [R Markdown](http://rmarkdown.rstudio.com) to develop R code, analyze data, and generate high quality reports. Markdown allows text, code, and results to be woven together in the same document. RStudio provides a quick start and helpful reference at `Help` \> `Markdown Quick Reference`.
+
+To learn more about R Markdown, see tutorials from [RStudio](http://rmarkdown.rstudio.com/lesson-1.html) and [CMU](http://www.stat.cmu.edu/~cshalizi/rmarkdown/), an [R Markdown Cheat Sheet](https://www.rstudio.com/wp-content/uploads/2016/03/rmarkdown-cheatsheet-2.0.pdf). For a deeper dive into creating documents using R Markdown, see [*R Markdown: The Definitive Guide*](https://bookdown.org/yihui/rmarkdown/).
+
+
+# R Coding Fundamentals
+
+## Help within R
+
+RStudio has a "Help" tab that displays R help pages. You can search the documentation by entering the name of a function or keyword into the search bar. You can also access the help pages directly using R commands.
+
+```{r, eval=FALSE}
+# help for "typeof", using help()
+help(typeof)
+
+# help for "typeof", using ?
+?typeof
+```
+
+## Vectors, Lists, and Data Types
+
+The fundamental building blocks of data structures in R are are called "vectors." Vectors can store one or more data values and come in two flavors:
+
+1.  **Atomic vectors**, whose elements are of the same type. The most common types are **numeric** (integer or decimal), **character** (strings), and **logical** (true and false). Elements of a single type can be combined into a vector using the `c()` function.
+2.  **Lists**, whose elements can be of differing type. In particular, you can have lists that contain other lists. Elements can be combined into a list using the `list()` function.
+
+Given a vector, the function `typeof()` returns its type and `length()` returns the number of elements it contains.
+
+### Numeric vectors
+
+```{r, eval=FALSE}
+# A numeric vector of length 1
+1.5
+typeof(1.5)
+
+# A numeric vector of length >1
+c(0, 1, 1, 2, 3, 5, 8, 13, 21, 34)
+typeof(c(0, 1, 1, 2, 3, 5, 8, 13, 21, 34))
+
+# The colon operator `:` generates sequence of integers in steps of 1 or -1
+1:10
+10:1
+
+# Arithmetic Operators
+#   +   add
+#   -   subtract
+#   *   multiply
+#   /   divide
+#   ^   raise to the power
+2^2
+```
+
+### Character vectors
+
+```{r, eval=FALSE}
+# Character values are delimited by quotation marks
+
+# A character vector of length 1
+"Hello World!"
+typeof("Hello World!")
+length("Hello World!")
+
+# A character vector of length > 1
+c("Hello", "World", "!")
+typeof(c("Hello", "World", "!"))
+length(c("Hello", "World", "!"))
+```
+
+### Logical vectors
+
+```{r, eval=FALSE}
+# The words TRUE and FALSE denote the two logical constants
+TRUE
+FALSE
+typeof(TRUE)
+typeof(FALSE)
+
+# A logical vector of length > 1
+c(TRUE, TRUE, TRUE, FALSE)
+typeof(c(TRUE, TRUE, TRUE, FALSE))
+
+# Logical operators
+#   &   for logical AND 
+#   |   for logical OR
+#   !   for logical negation (NOT)
+TRUE | FALSE
+TRUE & FALSE
+!TRUE
+
+# Relational operators: 
+#   <   for Less than
+#   >   for Greater than
+#   <=  for Less than or equal to
+#   >=  for Greater than or equal to
+#   ==  for Equal to
+#   !=  for Not equal to
+5 > 2
+5 >= 2
+5 < 2
+5 <= 2
+5 == 2
+5 != 2
+```
+
+### Lists
+
+```{r, eval=FALSE}
+# Lists can contain elements of any type
+list("Molitor", "FIN", 510)
+
+# Lists can even contain other lists
+list("Molitor", list("FIN", 510))
+
+# The elements of a list can be named using Name = Value pairs for each element
+list(Name = "Molitor", Subject = "FIN", Number = 510)
+
+# names() returns the names of list elements
+names(list(Name = "Molitor", Subject = "FIN", Number = 510))
+```
+
+## Variable assignment
+
+```{r, eval=FALSE}
+# Operators `<-` and `=` assign a value to a variable name
+h <- c("Hello", "World", "!")
+# or
+h = c("Hello", "World", "!")
+
+# `print()` prints the contents of variable
+print(h)
+
+# Implicit printing
+h
+
+# `rm()` deletes a variable
+rm(h)
+```
+
+## Subsetting vectors and lists
+
+Vectors and lists can be subset using single brackets `[ ]`, double brackets `[[ ]]`, and dollar sign `$` operators. We will illustrate how these operators work on the following vector and list.
+
+```{r}
+# Define an atomic vector
+x_vector = c(2, 4, 6, 8)
+
+# Define a named list
+x_list = list(Name = c("David", "Molitor"), Subject = "FIN", Number = 510)
+```
+
+### List/vector subsetting (multiple elements)
+
+Use single brackets `[` to select one or more elements of a vector or list.
+
+```{r, eval=FALSE}
+# Positive integers select elements in given positions
+x_vector[c(2, 3)]
+
+# Negative integers drop elements in given positions
+x_vector[c(-1, -4)]
+
+# Logical vectors select elements with a corresponding value of TRUE
+x_vector[c(FALSE, TRUE, FALSE, TRUE)]
+
+# For named lists, you can select elements by name
+x_list[c("Subject", "Number")]
+
+# When subsetting a list, `[` always returns a list containing the selected elements
+x_list[2]
+typeof(x_list[2])
+```
+
+### Element extraction (single element)
+
+Use double brackets `[[` or the dollar sign `$` to extract a single element from a vector or list.
+
+```{r, eval=FALSE}
+# Positive integer extracts element in given position
+x_vector[[2]]
+
+# For named lists, can extract an element by name
+x_list[["Subject"]]
+
+# Extraction from a list returns the selected element itself, not a list containing the element
+x_list[[2]]
+typeof(x_list[[2]])
+```
+
+## Conditional statements (if, if/else)
+
+```{r, eval=FALSE}
+# If
+if (TRUE) {
+  print("Condition is TRUE!")
+}
+
+# If/Else
+if (TRUE) {
+  print("Condition is TRUE!")
+} else {
+  print("Condition is FALSE!")
+}
+```
+
+## Loops (for)
+
+```{r, eval=FALSE}
+for (item in vector) {
+  print(item)
+}
+```
+
+## Functions
+
+```{r, eval=FALSE}
+# Create a function that adds two numbers
+f <- function(a, b) { 
+  a + b
+}
+
+# Invoke the function
+f(a = 2, b = 1)
+f(2, 1)
+f()
+
+# Redefine function with default values for arguments
+f <- function(a = 0, b = 0) { 
+  a + b
+}
+f(a = 2, b = 1)
+f(2, 1)
+f()
+```
+
+## Data frames
+
+Data frames are the most important object in R for data analytics. A data frame is a rectangular data structure, where each row is an observation and each column is a variable that describes some characteristic of the observation.
+
+Technically, data frames are just named lists with a special structure:
+
+-   Each item in the list is a vector
+    -   These vectors are the columns, also called "variables," in the data frame
+
+-   All vectors in the list must have equal length
+    -   This gives data frames a rectangular structure
+
+-   Columns have names (variable names)
+
+
+### Create a data frame from scratch
+
+You can create a data frame from scratch, using the `data.frame()` function.
+
+```{r, results = "hide"}
+# People and birth country vectors, each of length 2
+person <- c("Xiao Wang", "Sri Jena")
+country <- c("China", "India")
+
+# Combine into a data frame
+X <- data.frame(Name = person, Birth_Country = country)
+
+# X is an object with class “data.frame”
+class(X)
+```
+
+Because data frames are lists, you can subset them using the techniques discussed above.
+
+```{r, eval=FALSE}
+# Extract the first row of the data frame
+X[1,]
+
+# Extract the first column of the data frame
+X[,1]
+X[[1]]
+
+# Data on people named "Sri Jena"
+X[X$Name == "Sri Jena"]
+
+# Extract the vector of birth countries
+X$Birth_Country
+```
+
+## Read external data into a data frame
+
+Usually, large data sets come stored in external databases or text data like comma separated values (csv). The `tidyverse` package contains R functions that can read most common types of flat file data directly into a data frame.
+
+```{r, eval=FALSE}
+# Load package
+library(tidyverse)
+
+# CSV "Comma Separated Values" Format
+path <- "https://raw.githubusercontent.com/googletrends/data/master/20160819_OlympicSportsByCountries.csv"
+trends.csv <- read_csv(path, skip=2, n_max=100)
+
+# Display the first few rows
+head(trends.csv)
+trends.csv[1:3,]
+
+# Display countries interested in Archery
+trends.csv[trends.csv$Sport == "Archery", ]
+```

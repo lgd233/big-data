@@ -1,0 +1,152 @@
+---
+title: "Lecture 5: Data visualization"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    theme: simplex
+    fig_caption: true
+    number_sections: false
+---
+
+# FIN 510 setup for this lecture
+This lecture assumes that you are running RStudio on an Amazon EC2 instance created from AMI `FIN510-RStudio` with IAM role `FIN510EC2Role`. Copy the lecture materials from the course S3 bucket to your EC2 instance at `~/fin510/lecture-05` using the following [AWS Command Line Interface (CLI)](https://aws.amazon.com/cli/#file_commands_anchor) command. 
+
+```{bash, eval=FALSE}
+# This is a Unix command. Enter via RStudio Shell
+aws s3 cp --recursive s3://bigdata-fin510/lecture-05 ~/fin510/lecture-05
+```
+
+# Introduction to data visualization
+This lecture provides an introduction to visualizing data using `ggplot2`. Base R has some commands to visualize data, such as `plot()`. In this class, we will use the `ggplot2` package (another member of the `tidyverse` family), which provides a simple yet powerful "grammar" for building data visualizations.
+
+# Summary statistics
+We will start by providing numerical summaries of the data contained in `data_visualization.csv` (found in the `data/` subfolder). Read the data into an object called `dataset` using the `read_csv()` function. 
+
+```{r, results='hide', message=FALSE, warning=FALSE}
+library(tidyverse)
+
+# Read in the data
+dataset <- read_csv("data/data_visualization.csv")
+
+# Inspect the structure of dataset
+is.data.frame(dataset)
+names(dataset)
+nrow(dataset)
+head(dataset)
+```
+
+Use `summarise()` to calculate the mean, standard deviation and correlation of the variables in each data set. Do so for the dataset as a whole, and also separately for each group defined by the variable named `group`. 
+
+Use the `round()` function to round results to three decimal digits. 
+
+```{r}
+# Summary statistics: mean and sd of x and y; correlation between x and y; #obs
+dataset %>% 
+  summarise(mean(x), sd(x), mean(y), sd(y), cor(x,y), n()) %>% 
+  round(3)
+
+# Calculate summary statistics by group, round output to three decimal places
+dataset %>% 
+  group_by(group = group) %>% 
+  summarise(mean(x), sd(x), mean(y), sd(y), cor(x,y), n()) %>% 
+  round(3)
+```
+
+The similarity of the summary statistics might lead us to assume that the data for each group come from the same data generating process. Of course, it is possible that these summary statistics have failed to capture some important element of the relationships in these datasets. We will use data visualization to help provide a more complete picture of these relationships.
+
+# Visualization
+We will use the `ggplot()` function from the `ggplot2` package (part of `tidyverse`) to create data visualizations based on "The Grammar of Graphics." Graphics are constructed by using `ggplot()` to create a plot object, then components (or "layers") are added to the plot using `+`.
+
+When creating a plot object, you can specify a default data frame for each layer using `ggplot(data = <your data frame>)`. Until we add components, this will only generate a blank plot.
+
+```{r}
+ggplot(data = dataset)
+```
+
+The most common types of layers are called `geoms`. Two common geoms we will use are the "point" geom, `geom_point()`, which creates a scatterplot, and the "line" geom, `geom_line()`, which connects points in order of the variable on the x axis. You can find a complete list of all geom types at [https://ggplot2.tidyverse.org/reference/](https://ggplot2.tidyverse.org/reference/).
+
+Each geom has a set of "aesthetics" that describe how variables in the data are mapped to visual properties. Type `?geom_point` in the R Console to see a description of aesthetics for `geom_point`. For example, to map the `x` and `y` coordinates of each observation in the data to a point on the graph, we use the aesthetics statement `aes(x = <variable that goes on x axis>, y = <variable that goes on y axis>)`.
+
+```{r, fig.show='asis', results='hide'}
+# Simple plot
+ggplot(dataset, aes(x = x, y = y)) +
+  geom_point()
+
+# Add color and size options
+gg <- ggplot(dataset, aes(x = x, y = y)) +
+  geom_point(aes(x=x,y=y), color="blue", alpha = 1/10) 
+gg
+
+# Use the `geom_smooth` geom to calculate and add a linear trendline
+gg + geom_smooth(method = "lm", color="orange", size=1.5)
+```
+
+Alternatively, use the `lm` (linear model) function to directly compute the trendline that best fits the data, and add the predictions of this model to the graph.
+
+```{r, eval=TRUE, results='hide', fig.show='as.is'}
+lm <- lm(y ~ x, data = dataset)
+class(lm)
+names(lm)
+typeof(lm)
+lm$coefficients
+summary(lm)
+
+dataset %>% 
+  ggplot() +
+  geom_point(aes(x = x, y = y), color = "blue", alpha = 1/10) +
+  geom_line(aes(x = x, y = lm$fitted.values), color = "orange", size = 1.5)
+```
+
+Plot the data for a specific group `g`.
+
+```{r, results='hide', fig.show='as,is'}
+g <- 4
+
+lm <- lm(y~x, data = dataset, subset = (group == g))
+summary(lm)
+
+dataset %>% 
+  filter(group == g) %>% 
+  ggplot() +
+  geom_point(aes(x = x, y = y), color = "blue")
+```
+
+Sometimes, we want to plot all groups of data at the same time. One way to distinguish between groups within the same plot is to give the points for each group their own color or shape. Another way is to create a grid of panels, with each group plotted in a separate panel.
+
+```{r}
+# color/shape mappings
+dataset %>%  
+  ggplot() +
+  geom_point(aes(x=x, y=y, color=as.factor(group)))
+
+# facets
+ggplot(data = dataset) + 
+  geom_point(aes(x = x, y = y, color = as.factor(group)), size=0.75) +
+  facet_wrap( ~ group, ncol = 3) +
+  theme_void() +
+  theme(legend.position = "none")
+```
+
+
+# The value of visualization
+What does this example suggest about the value of visulation as a type of summary statistic? This example comes originally from [this](http://www.thefunctionalart.com/2016/08/download-datasaurus-never-trust-summary.html) blog post. You can read more about it [here](https://www.autodeskresearch.com/publications/samestats). 
+
+The R community created the `datasaurus_dozen` package which contains these data. To use this package directly, you must first install the package using `install.packages(datas. Then type `ggplot(data = datasaurus_dozen)`, because  is the name of the data frame with all points. You can type `View(datasaurus_dozen)` to see it.
+
+Then we add a layer of `geom_point()` as we still want a scatter plot. Notice now we have the option `color = dataset`. This gives each unique category in the variable `dataset` of the data frame `datasaurus_dozen` a unique color. Then we have `facet_wrap()`. It splits our plot into facets according to the categories of the variable `dataset`.
+
+The last two expressions are related to the theme of our plot. `theme_void()` imposes a very clean theme (notice there are no axis and no background). The `theme()` let us personalize details of the plot; in this case, it omits the legend. `ggplot2` works in a system of layers, and therefore the order of the commands can alter your final figure.
+
+```{r, message=FALSE, results='hide', fig.show='as.is'}
+if (!require(datasauRus)) install.packages("datasauRus")
+library(datasauRus)
+
+ggplot(data = datasaurus_dozen) + 
+  geom_point(aes(x = x, y = y, color = dataset)) +
+  facet_wrap( ~ dataset, ncol = 3) +
+  theme_void() +
+  theme(legend.position = "none")
+```
+

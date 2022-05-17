@@ -1,0 +1,208 @@
+---
+title: "Lecture 4: Data Exploration"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    theme: simplex
+    number_sections: false
+---
+
+```{r global_options, include = FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+```
+
+## 1 create a tibble 
+```{r}
+# load the data 
+library(tidyverse)
+df <- read_csv("exe.csv")
+
+# first six rows 
+head(df)
+
+# number of rows and columns 
+dim(df)
+nrow(df)
+ncol(df)
+
+# column names 
+names(df)
+
+# variable type 
+str(df)
+```
+
+## 2 summary statistics 
+```{r}
+# minimum 
+min(df$SALARY)
+
+# maximum
+max(df$SALARY)
+
+# mean
+mean(df$SALARY)
+
+# median
+median(df$SALARY)
+
+# first and third quantile 
+quantile(df$SALARY, 0.25)
+quantile(df$SALARY, 0.75)
+quantile(df$SALARY, c(0.25, 0.75))
+
+# summary 
+summary(df$SALARY)
+
+# distinct 
+n_distinct(df$TICKER)
+
+# frequency count 
+table(df$TICKER)
+count(df,TICKER)
+```
+
+## 3 counts and proportion of logical values  
+
+### 3.1 counts of logical values 
+```{r}
+# SALARY values 
+head(df$SALARY)
+# whether SALARY>1000
+head(df$SALARY>1000)
+# number of rows with SALARY >1000
+sum(df$SALARY>1000)
+
+# YEAR values
+head(df$YEAR)
+# whether YEAR=2015 
+head(df$YEAR==2015)
+# number of rows with YEAR = 2015 
+sum(df$YEAR==2015)
+
+# CFOANN values
+head(df$CFOANN)
+# whether CFOANN is missing 
+head(is.na(df$CFOANN))
+# number of rows with CFOANN=CFO (not missing)
+sum(!is.na(df$CFOANN))
+
+# dealing with missing values 
+sum(df$CFOANN=="CFO",na.rm=TRUE)
+# wrong
+sum(df$CFOANN=="CFO")
+```
+
+### 3.2 proportions of logical values 
+```{r}
+# proportion of rows with SALARY >1000
+mean(df$SALARY>1000)
+
+# proportion of rows with YEAR = 2015 
+mean(df$YEAR==2015)
+
+# proportion of rows with CFOANN=CFO
+mean(!is.na(df$CFOANN))
+# wrong 
+mean(df$CFOANN=="CFO",na.rm=T)
+```
+
+## 4 summarize()
+
+```{r}
+# average and maximum SALARY, number of observations, and number of unique TICKER 
+summarize(df, 
+          SALARY_mean=mean(SALARY),
+          SALARY_max=max(SALARY),
+          n_rows=n(),
+          n_firms=n_distinct(TICKER))
+
+# counts of CEOs and CFOs
+summarize(df,
+          CEOANN_count=sum(CEOANN=="CEO",na.rm=T),
+          CFOANN_count=sum(CFOANN=="CFO",na.rm=T))
+
+# average and maximum SALARY, and the number of observations by TICKER and YEAR 
+df_by_TICKER_YEAR <- group_by(df,TICKER, YEAR)
+summarize(df_by_TICKER_YEAR, 
+          SALARY_mean=mean(SALARY),
+          SALARY_max=max(SALARY),
+          n_rows=n(),.groups="drop")
+```
+
+## 5 combine multiple operations with the pipe
+
+### 5.1 salary plus bonus for CEOs in 2019
+```{r}
+df %>% 
+  filter(CEOANN=="CEO" & YEAR==2019) %>% 
+  mutate(SALARY_BONUS=SALARY+BONUS) %>% 
+  select(TICKER,EXEC_FULLNAME,SALARY,BONUS,SALARY_BONUS)
+```
+
+### 5.2 average salary by firm
+```{r}
+df %>% 
+  group_by(TICKER) %>% 
+  summarize(SALARY_mean=mean(SALARY)) %>% 
+  arrange(desc(SALARY_mean))
+```
+
+### 5.3 firms with average salary more than 900k
+```{r}
+df %>% 
+  group_by(TICKER) %>% 
+  summarize(SALARY_mean=mean(SALARY)) %>% 
+  filter(SALARY_mean>900) %>%
+  arrange(desc(SALARY_mean)) 
+```
+
+### 5.4 the highest paid executive's salary by firm 
+```{r}
+df %>% 
+  group_by(TICKER) %>% 
+  arrange(desc(TDC1)) %>% 
+  summarize(SALARY_highest_TDC1=first(SALARY))
+
+df %>% 
+  group_by(TICKER) %>% 
+  arrange(TDC1) %>% 
+  summarize(SALARY_highest_TDC1=last(SALARY))
+```
+
+### 5.5 highest salary plus bonus by firm 
+```{r}
+df %>% 
+  mutate(SALARY_BONUS=SALARY+BONUS) %>% 
+  group_by(TICKER) %>% 
+  summarize(SALARY_BONUS_max=max(SALARY_BONUS))
+```
+
+### 5.6 average salary by gender 
+```{r}
+df %>% 
+  group_by(GENDER) %>% 
+  summarize(SALARY_mean=mean(SALARY),
+            n_rows=n()) 
+```
+
+### 5.7 CEOs or CFOs average salary by gender 
+```{r}
+df %>% 
+  filter(CEOANN=="CEO" | CFOANN=="CFO") %>% 
+  group_by(GENDER) %>% 
+  summarize(SALARY_mean=mean(SALARY))
+```
+
+### 5.8 cumulative salaries by firm in 2015
+```{r}
+df %>% 
+  filter(YEAR==2015) %>% 
+  group_by(TICKER) %>% 
+  summarize(SALARY, 
+            SALARY_cumsum=cumsum(SALARY),
+            SALARY_sum=sum(SALARY), .groups="drop")
+```
+

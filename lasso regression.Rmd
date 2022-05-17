@@ -1,0 +1,216 @@
+---
+title: "Lecture 12: Lasso Regression"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    theme: simplex
+    number_sections: false
+---
+
+```{r global_options, include = FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+```
+
+## 1 data preparation 
+
+### 1.1 create new variables 
+```{r}
+# load the data 
+loan.df <- read.csv("orig_svcg_2005_48mo.csv")
+head(loan.df)
+
+# create frac_unpaid
+loan.df$frac_current_upb <- loan.df$current_upb/loan.df$orig_upb
+head(loan.df$frac_current_upb)
+
+# create msa: equal to TRUE if the mortgaged property is located in a MSA, and FALSE otherwise
+loan.df$msa <- !is.na(loan.df$cd_msa)
+head(loan.df$cd_msa)
+head(loan.df$msa)
+
+# create other_servicers: equals TRUE if the servicer name is in the category 'other servicers', and FALSE otherwise
+loan.df$other_servicers<- (loan.df$servicer_name == "Other servicers")
+head(loan.df$servicer_name)
+head(loan.df$other_servicers)
+
+# select outcome and potential predictors  
+df <-  loan.df[, c("frac_current_upb", "orig_upb", "fico", "mi_pct", "dti", "ltv", "int_rt","cnt_units", "cnt_borr", 
+                   "msa", "other_servicers", "flag_fthb", "prop_type","occpy_sts")]
+head(df)
+
+# column names
+names(df)
+```
+
+### 1.2 remove rows with missing values 
+```{r}
+# number of missing values in the first 10 rows of the original data frame 
+is.na(loan.df[1:10,])
+sum(is.na(loan.df[1:10,]))
+
+# dimension 
+dim(df)
+
+# number of cells with missing values 
+sum(is.na(df))
+
+# remove rows that have missing values in any variable 
+df <- na.omit(df)
+
+# dimension 
+dim(df)
+
+# number of cells with missing values 
+sum(is.na(df))
+
+# data frame 
+is.data.frame(df)
+```
+
+### 1.3 create x and y 
+```{r}
+# convert a data frame of predictors to a matrix 
+x <- model.matrix(frac_current_upb~.,df)[,-1]
+# model.matrix creates dummy variables for character variables
+head(x)
+
+# matrix 
+is.matrix(x)
+
+# outcome 
+y <- df$frac_current_upb
+
+# vector
+is.vector(y)
+```
+
+## 2 data partition 
+```{r}
+# row indexes of the training set 
+set.seed(1)
+train.index <- sample(c(1:dim(x)[1]), dim(x)[1]*0.5)
+head(train.index)
+
+# predictors in the training set 
+head(x[train.index,])
+
+# outcome in the training set 
+head(y[train.index])
+
+# row indexes of the test set 
+test.index <- (-train.index)
+head(test.index)
+
+# predictors in the test set 
+head(x[test.index,])
+
+# outcome in the test set 
+y.test <- y[test.index]
+head(y.test)
+```
+
+## 3 lasso regression 
+```{r}
+# fit a lasso regression model 
+library(glmnet)
+fit<- glmnet(x[train.index,],y[train.index],alpha=1)
+# alpha=1 specifies a lasso regression model 
+
+# sequence of lambda values 
+fit$lambda
+
+# dimension of lasso regression coefficients 
+# 19 coefficients (intercept plus 18 predictors) for each value of lambda 
+dim(coef(fit))
+
+# plot coefficients on log of lambda values 
+plot(fit, xvar="lambda")
+```
+
+## 4 model with a small lambda value 
+```{r}
+# return a small lambda value 
+lambda.small <- fit$lambda[70]
+lambda.small
+
+# lasso regression coefficients 
+coef.lambda.small <- predict(fit,s=lambda.small,type="coefficients")[1:19,]
+# s: value of the penalty parameter lambda
+# type=coefficients computes the coefficients at the requested lambda value 
+coef.lambda.small
+
+# non-zero coefficient estimates  
+coef.lambda.small[coef.lambda.small!=0]
+
+# make predictions for records in the test set 
+pred.lambda.small <- predict(fit,s=lambda.small,newx=x[test.index,])
+head(pred.lambda.small)
+
+# MSE in the test set 
+mean((y.test-pred.lambda.small)^2)
+```
+
+## 5 model with a large lambda
+```{r}
+# return a large lambda value 
+lambda.large <- fit$lambda[1]
+lambda.large
+
+# lasso regression coefficients  
+coef.lambda.large <- predict(fit,s=lambda.large,type="coefficients")[1:19,]
+# s: value of the penalty parameter lambda
+# type=coefficients computes the coefficients at the requested lambda value 
+coef.lambda.large 
+
+# non-zero coefficient estimates  
+coef.lambda.large[coef.lambda.large!=0]
+
+# make predictions for records in the test set 
+pred.lambda.large <- predict(fit,s=lambda.large,newx=x[test.index,])
+head(pred.lambda.large)
+
+# prediction is the mean 
+mean(y[train.index])
+
+# MSE in the test set 
+mean((y.test-pred.lambda.large)^2)
+```
+
+## 6 use cross-validation to choose lambda 
+```{r}
+# fit a lasso regression model with 10-fold cross-validation on the training set 
+set.seed(1)
+cv.fit <- cv.glmnet(x[train.index,],y[train.index],alpha=1, type.measure="mse")
+# alpha=1 specifies a lasso regression model 
+# type.measure="mse" specifies the criterion: cross-validated MSE 
+# nfold=10 performs 10-fold cross validation by default 
+
+# cross-validated MSE for each lambda 
+plot(cv.fit)
+
+# lambda that corresponds to the lowest cross-validated MSE 
+lambda.best <- cv.fit$lambda.min
+lambda.best 
+
+# vertical line on the graph 
+log(lambda.best)
+```
+
+## 7 model with the best lambda 
+```{r}
+# lasso regression coefficients  
+coef.lambda.best <- predict(cv.fit,s=lambda.best,type="coefficients")[1:19,]
+coef.lambda.best
+
+# non-zero coefficients 
+coef.lambda.best[coef.lambda.best!=0]
+
+# make predictions for records the test set 
+pred.lambda.best <- predict(cv.fit,s=lambda.best,newx=x[test.index,])
+head(pred.lambda.best)
+
+# MSE in the test set 
+mean((y.test-pred.lambda.best)^2)
+```

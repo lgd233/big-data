@@ -1,0 +1,229 @@
+---
+title: "Lecture 15: Bagging, Random Forests, and Boosting"
+output:
+  html_document:
+    toc: true
+    toc_depth: 4
+    toc_float: true
+    theme: simplex
+    number_sections: false
+---
+
+```{r global_options, include = FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+```
+
+## 1 create a data frame 
+
+### 1.1 load the data 
+```{r}
+bank.df <- read.csv("UniversalBank.csv")
+head(bank.df)
+
+# drop ID and zip code columns.
+bank.df <- bank.df[ , -c(1, 5)]  
+head(bank.df)
+
+# convert numeric variables to categorical variables 
+bank.df$Education <- as.factor(bank.df$Education)
+
+bank.df$Personal.Loan <- as.factor(bank.df$Personal.Loan)
+str(bank.df)
+```
+
+### 1.2 data partition
+```{r}
+# total number of rows
+dim(bank.df)[1]
+
+# size of the training set 
+dim(bank.df)[1]*0.6
+
+# set seed 
+set.seed(1)  
+
+# row index of the training set  
+train.index <- sample(c(1:dim(bank.df)[1]), dim(bank.df)[1]*0.6)  
+head(train.index)
+
+# training set 
+train.df <- bank.df[train.index, ]
+head(train.df)
+
+# test set 
+test.df <- bank.df[-train.index, ]
+head(test.df)
+```
+
+## 2 bootstrap aggregation 
+
+### 2.1 fit the bagging algorithm
+```{r}
+library(adabag)
+
+set.seed(1)
+bag <- bagging(Personal.Loan ~ ., data = train.df)
+# mfinal=100: grow 100 trees by default
+```
+
+### 2.2 predicted probabilities and classes for records in the test set 
+```{r}
+# predictions from a fitted bagging object 
+bag.pred <- predict(bag, test.df)
+
+# predicted probabilities 
+head(bag.pred$prob)
+
+# predicted classes
+head(bag.pred$class)
+```
+
+### 2.3 confusion matrix 
+```{r}
+library(caret)
+
+# actual classes 
+head(test.df$Personal.Loan)
+
+# evaluate classification performance 
+# positive specifies the class that corresponds to a positive result 
+confusionMatrix(as.factor(bag.pred$class), test.df$Personal.Loan, positive = "1")
+```
+
+## 3 random forests 
+
+### 3.1 implement the random forests algorithm 
+```{r}
+library(randomForest)
+
+set.seed(1)
+rf <- randomForest(Personal.Loan ~ ., data = train.df, mtry = 4, nodesize = 5)  
+# ntree=500: grow 500 trees by default
+# mtry: number of variables randomly sampled as candidates 
+# nodesize: minimum size of terminal nodes
+```
+
+### 3.2 variable importance 
+```{r}
+# variable importance 
+importance(rf)
+
+# variable importance plot
+varImpPlot(rf)
+```
+
+### 3.3 predicted probabilities and classes for records in the test set 
+```{r}
+# predicted probabilities 
+# type="prob": generate predicted probabilities 
+head(predict(rf, test.df, type="prob"))
+
+# predicted classes 
+# type="class": generate predicted classes
+rf.pred <- predict(rf, test.df, type="class")
+head(rf.pred)
+```
+
+### 3.4 confusion matrix 
+```{r}
+# actual classes 
+head(test.df$Personal.Loan)
+
+# evaluate classification performance  
+confusionMatrix(rf.pred, test.df$Personal.Loan, positive = "1")
+```
+
+## 4 adaptive boosting using classification trees
+
+### 4.1 fit the AdaBoost algrithom 
+```{r}
+set.seed(1)
+boost <- boosting(Personal.Loan ~ ., data = train.df)
+# mfinal=100: grow 100 trees by default
+```
+
+### 4.2 predicted probabilities and classes for records in the test set
+```{r}
+# predictions from a fitted bagging object 
+boost.pred <- predict(boost, test.df)
+
+# predicted probabilities 
+head(boost.pred$prob)
+
+# predicted probability of accepting the loan 
+head(boost.pred$prob[,2])
+
+# predicted classes 
+head(boost.pred$class)
+```
+
+### 4.3 confusion matrix 
+```{r}
+# actual classes 
+head(test.df$Personal.Loan)
+
+# evaluate classification performance 
+confusionMatrix(as.factor(boost.pred$class), test.df$Personal.Loan, positive = "1")
+```
+
+### 4.4 lift chart 
+
+#### constructs a gains table
+```{r}
+# probability of accepting the loan 
+head(boost.pred$prob[,2])
+
+# outcome variable is a categorical variable
+head(test.df$Personal.Loan)
+
+# converts the outcome variable to a numeric variable 
+head(as.numeric(as.character(test.df$Personal.Loan)))
+# wrong 
+head(as.numeric(test.df$Personal.Loan))
+
+# constructs a gains table to evaluate the performance 
+library(gains)
+# inputs are a vector of actual responses and a vector of predicted probabilities 
+gain <- gains(as.numeric(as.character(test.df$Personal.Loan)), boost.pred$prob[,2], groups = 10)
+# the vector of actual should be numeric: convert categorical values to numeric values 
+
+# cumulative percentage of acceptors
+gain$cume.pct.of.total
+
+# total number of acceptors 
+sum(test.df$Personal.Loan==1)
+
+# cumulative number of acceptors 
+gain$cume.pct.of.total*sum(test.df$Personal.Loan==1)
+
+# y axis values 
+c(0,gain$cume.pct.of.total*sum(test.df$Personal.Loan==1))
+
+# cumulative number of customers
+gain$cume.obs
+
+# x axis values 
+c(0,gain$cume.obs)
+```
+
+#### plot a lift chart
+```{r}
+# plot the lift chart 
+plot(c(0,gain$cume.pct.of.total*sum(test.df$Personal.Loan==1))~c(0,gain$cume.obs), 
+     xlab="cumulative number of customers", ylab="cumulative number of acceptors", type="l")
+
+# total number of acceptors 
+sum(test.df$Personal.Loan==1)
+
+# y axis values 
+c(0,sum(test.df$Personal.Loan==1))
+
+# total number of customers 
+dim(test.df)[1]
+
+# x axis values 
+c(0, dim(test.df)[1])
+
+# add a baseline curve 
+lines(c(0,sum(test.df$Personal.Loan==1))~c(0, dim(test.df)[1]))
+```

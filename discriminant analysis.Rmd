@@ -1,0 +1,238 @@
+---
+title: "Lecture 9: Discriminant Analysis"
+output:
+  html_document:
+    toc: true
+    toc_depth: 4
+    toc_float: true
+    theme: simplex
+    number_sections: false
+---
+
+```{r global_options, include = FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+```
+
+
+<font size="5" style="color:blue"> first example: classifying households into owners or nonowners </font> 
+
+### 1 creating a data frame 
+```{r}
+# load the data 
+mowers.df <- read.csv("RidingMowers.csv")
+head(mowers.df)
+
+# predictors 
+mowers.df[,1:2]
+
+# outcome variable 
+mowers.df[,3]
+mowers.df$Ownership
+```
+
+### 2 discriminant analysis for riding mower data
+
+#### 2.1 perform a linear discriminant analysis 
+```{r}
+library(DiscriMiner)
+lda.reg <- linDA(mowers.df[,1:2], mowers.df[,3])
+```
+
+#### 2.2 estimated classification function 
+```{r}
+lda.reg$functions
+```
+
+#### 2.3 classification scores 
+```{r}
+# whichever class's function has the highest score is the class assigned to that record 
+lda.reg$scores
+
+# nonowner classification scores (class=0)
+lda.reg$scores[,1]
+
+# nonowner classification scores for the first household (54.48068)
+-51.4214500 + 0.3293554*60 + 4.6815655*18.4
+
+# owner classification score (class=1) 
+lda.reg$scores[,2]
+
+# owner classification score for the first household  (53.20313)
+-73.1602116 + 0.4295857*60 + 5.4667502*18.4
+```
+
+#### 2.4 compute probabilities from the scores 
+```{r}
+prob.owner <- exp(lda.reg$scores[,2])/(exp(lda.reg$scores[,1])+exp(lda.reg$scores[,2]))
+prob.owner
+
+# probabilities of being the owner for the first household 
+exp(53.20313)/(exp(54.48068)+exp(53.20313))
+```
+
+#### 2.5 predicted classes (0 for nonowner; 1 for owner)
+```{r}
+# use a cutoff of 0.5 
+# assign the record to the class with the highest classification score 
+lda.reg$classification
+```
+
+#### 2.6 create a data frame 
+```{r}
+# actual class, predicted class, classification scores, predicted probability of being the owner
+data.frame(Actual=mowers.df$Ownership, lda.reg$classification, lda.reg$scores, propensity.owner=prob.owner)
+```
+
+<font size="5" style="color:blue"> second example: classifying customers into acceptors and nonacceptors   </font> 
+
+### 3 creating a data frame 
+```{r}
+# load the data
+df <- read.csv("UniversalBank.csv")
+head(df)
+
+# turn categorical predictors with more than two categories into dummies variables 
+# create 2 dummies for Education (a numeric variable with 3 distinct values)
+df$Education_level2 <- df$Education==2
+df$Education_level3 <- df$Education==3
+head(df)
+
+# Boolean values: FALSE=0; TRUE=1 
+head(df[df$Education_level2==1,])
+head(df[df$Education_level3==0,])
+```
+
+### 4 data partition
+```{r}
+# row names
+head(row.names(df))
+
+# size of the training data 
+0.6*dim(df)[1]
+
+# row names of the training set 
+set.seed(1)
+train.row <- sample(row.names(df), 0.6*dim(df)[1])
+head(train.row)
+
+# row names of the test set 
+test.row <- setdiff(row.names(df), train.row)
+head(test.row)
+```
+
+### 5 discriminant analysis using the training set
+```{r}
+# create a vector of names of predictors 
+names(df)
+
+# do not choose Education; choose Education_level2 and Education_level3 instead 
+predictors <- c("Age",	"Experience",	"Income",	"Family",	"CCAvg",	"Mortgage",	
+                "Securities.Account", "CD.Account",	"Online",	"CreditCard",
+                "Education_level2","Education_level3")
+
+# predictors in the training set 
+head(df[train.row,predictors])
+
+# outcome variable in the training set 
+head(df[train.row,]$Personal.Loan)
+
+# perform a linear discriminant analysis
+da.reg <- linDA(df[train.row,predictors], df[train.row,]$Personal.Loan)
+```
+
+### 6 making predictions for records in the test set
+
+#### 6.1 use classify() to classify observations based on discriminant analysis object 
+```{r}
+# predictors in the test set  
+head(df[test.row,predictors])
+
+pred <- classify(da.reg, newdata = df[test.row,predictors])
+```
+
+#### 6.2 classification scores for records in the test set
+```{r}
+head(pred$scores)
+
+# nonacceptor classification scores 
+head(pred$scores[,1])
+
+# acceptor classification scores 
+head(pred$scores[,2])
+```
+
+#### 6.3 predicted probabilities of accepting the loan 
+```{r}
+prob.accept <- exp(pred$scores[,2])/(exp(pred$scores[,1])+exp(pred$scores[,2]))
+head(prob.accept)
+
+# first observation in the test set 
+exp(242.3014)/(exp(252.2218)+exp(242.3014))
+format(4.916185e-05, scientific = FALSE)
+```
+
+#### 6.4 predicted classes 
+```{r}
+# default cutoff value is 0.5 
+head(pred$pred_class)
+```
+
+### 7 creating a confusion matrix 
+```{r}
+# outcome variable in the test set 
+head(df[test.row,]$Personal.Loan)
+
+# evaluate classification performance 
+# positive specifies the class that corresponds to a positive result 
+library(caret)
+confusionMatrix(pred$pred_class, as.factor(df[test.row,]$Personal.Loan), positive = "1")
+```
+
+### 8 creating a lift chart  
+
+#### 8.1 constructs a gains table
+```{r}
+library(gains)
+gain <- gains(df[test.row,]$Personal.Loan, prob.accept, groups = 10)
+
+# cumulative percentage of acceptors 
+gain$cume.pct.of.total
+
+# total number of acceptors 
+sum(df[test.row,]$Personal.Loan)
+
+# cumulative number of acceptors 
+gain$cume.pct.of.total*sum(df[test.row,]$Personal.Loan)
+
+# y axis values 
+c(0,gain$cume.pct.of.total*sum(df[test.row,]$Personal.Loan))
+
+# cumulative number of customers 
+gain$cume.obs
+
+# x axis values 
+c(0,gain$cume.obs)
+```
+
+#### 8.2 plot a lift chart
+```{r}
+plot(c(0,gain$cume.pct.of.total*sum(df[test.row,]$Personal.Loan))~c(0,gain$cume.obs), 
+     xlab="cumulative number of customers", ylab="cumulative number of acceptors", type="l")
+
+# total number of acceptors 
+sum(df[test.row,]$Personal.Loan)
+
+# y axis values 
+c(0,sum(df[test.row,]$Personal.Loan))
+
+# total number of customers  
+dim(df[test.row,])[1]
+
+# x axis values 
+c(0, dim(df[test.row,])[1])
+
+# add a baseline curve 
+lines(c(0,sum(df[test.row,]$Personal.Loan)) ~ c(0, dim(df[test.row,])[1]))
+```
+
+

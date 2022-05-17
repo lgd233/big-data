@@ -1,0 +1,223 @@
+---
+title: "Lecture 11: Cross-Validation "
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    theme: simplex
+    number_sections: false
+---
+
+```{r global_options, include = FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+```
+
+### load the data 
+```{r}
+auto <- read.csv("Auto.csv")
+```
+
+## 1 the Validation Set Approach 
+
+### 1.1 data partition into training (50%) and validation (50%) sets 
+```{r}
+# total number of rows 
+dim(auto)[1]
+
+# number of rows to select for the training set 
+dim(auto)[1]*0.5
+
+# row index of the training set 
+set.seed(1)
+train.index <- sample(c(1:dim(auto)[1]),dim(auto)[1]*0.5)
+
+# training set
+train.df <- auto[train.index,]
+head(train.df)
+
+# validation set
+validation.df <- auto[-train.index,]
+head(validation.df)
+```
+
+### 1.2 linear regression model 
+```{r}
+# fit a linear regression on the training set 
+lm1 <- lm(mpg~horsepower,data=train.df)
+summary(lm1)
+
+# predicted mpg for records in the validation set 
+lm1.pred <- predict(lm1,validation.df)
+head(lm1.pred)
+
+# MSE in the validation set 
+mean((validation.df$mpg-lm1.pred)^2)
+```
+
+### 1.3 regression model with a quadratic term 
+```{r}
+# fit a quadratic regression on the training set 
+lm2 <- lm(mpg~poly(horsepower,2),data=train.df)
+summary(lm2)
+
+# predicted mpg for records in the validation set 
+lm2.pred <- predict(lm2,validation.df)
+head(lm2.pred)
+
+# MSE in the validation set 
+mean((validation.df$mpg-lm2.pred)^2)
+```
+
+### 1.4 regression model with a cubic term 
+```{r}
+# fit a cubic regression on the training set 
+lm3 <- lm(mpg~poly(horsepower,3),data=train.df)
+summary(lm3)
+
+# predicted mpg for records in the validation set 
+lm3.pred <- predict(lm3,validation.df)
+head(lm3.pred)
+
+# MSE in the validation set 
+mean((validation.df$mpg-lm3.pred)^2)
+```
+
+## 2 leave-one-out cross-validation
+
+### 2.1 regression model with a linear term  
+```{r}
+# fit a linear regression 
+glm1 <- glm(mpg~horsepower,data=auto)
+summary(glm1)
+
+# same result as a linear regression using lm() 
+lm <- lm(mpg~horsepower,data=auto)
+summary(lm)
+
+# compute the leave-one-out cross-validation prediction error
+library(boot)
+loocv.err1 <- cv.glm(auto,glm1)
+
+# cross-validated MSE 
+loocv.err1$delta[1]
+
+# number of groups into which the data is split to estimate the cross-validated MSE
+loocv.err1$K
+```
+
+### 2.2 regression model with a quadratic term 
+```{r}
+# fit a quadratic regression 
+glm2 <- glm(mpg~poly(horsepower,2),data=auto)
+summary(glm2)
+
+# compute the leave-one-out cross-validation prediction error
+loocv.err2 <- cv.glm(auto,glm2)
+
+# cross-validated MSE 
+loocv.err2$delta[1]
+
+# number of groups into which the data is split to estimate the cross-validated MSE
+loocv.err2$K
+```
+
+### 2.3 regression model with a cubic term
+```{r}
+# fit a cubic regression 
+glm3 <- glm(mpg~poly(horsepower,3),data=auto)
+summary(glm3)
+
+# compute the leave-one-out cross-validation prediction error
+loocv.err3 <- cv.glm(auto,glm3)
+
+# cross-validated MSE 
+loocv.err3$delta[1]
+
+# number of groups into which the data is split to estimate the cross-validated MSE
+loocv.err3$K
+```
+
+### 2.4 regression models with linear, quadratic, cubic, and higher-order polynomial terms 
+```{r}
+# create a vector of zeros 
+loocv <- rep(0,5)
+loocv
+
+# use a for loop to iterate 
+for (i in 1:5){
+  glm <- glm(mpg~poly(horsepower,i),data=auto)
+  cv.error <- cv.glm(auto,glm)
+  loocv[i] <- cv.error$delta[1]
+}
+loocv
+```
+
+## 3 k-fold cross validation 
+
+### 3.1 regression model with a linear term  
+```{r}
+# fit a linear regression 
+glm1 <- glm(mpg~horsepower,data=auto)
+summary(glm1)
+
+# compute the 10-fold cross-validation prediction error
+set.seed(1)
+kfcv.err1 <- cv.glm(auto,glm1,K=10)
+
+# cross-validated MSE  
+kfcv.err1$delta[1]
+
+# number of groups into which the data is split to estimate the cross-validated MSE
+kfcv.err1$K
+```
+
+### 3.2 regression model with a cubic term 
+```{r}
+# fit a cubic regression 
+glm2 <- glm(mpg~poly(horsepower,2),data=auto)
+summary(glm2)
+
+# compute the 10-fold cross-validation prediction error
+set.seed(1)
+kfcv.err2 <- cv.glm(auto,glm2,K=10)
+
+# cross-validated MSE 
+kfcv.err2$delta[1]
+
+# number of groups into which the data is split to estimate the cross-validated MSE
+kfcv.err2$K
+```
+
+### 3.3 regression model with a cubic term 
+```{r}
+# fit a cubic regression 
+glm3 <- glm(mpg~poly(horsepower,3),data=auto)
+summary(glm3)
+
+# compute the 10-fold cross-validation prediction error
+set.seed(1)
+kfcv.err3 <- cv.glm(auto,glm3,K=10)
+
+# cross-validated MSE 
+kfcv.err3$delta[1]
+
+# number of groups into which the data is split to estimate the cross-validated MSE
+kfcv.err3$K
+```
+
+### 3.4 regression models with linear, quadratic, cubic, and higher-order polynomial terms 
+```{r}
+# create a vector of zeros 
+kfcr <- rep(0,5)
+kfcr
+
+# use a for loop to iterate 
+for (i in 1:5){
+  glm <- glm(mpg~poly(horsepower,i),data=auto)
+  set.seed(1)
+  cv.error <- cv.glm(auto,glm, K=10)
+  kfcr[i] <- cv.error$delta[1]
+}
+kfcr
+```

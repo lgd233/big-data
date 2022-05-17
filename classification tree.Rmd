@@ -1,0 +1,230 @@
+---
+title: "Lecture 13: Classification Trees"
+output:
+  html_document:
+    toc: true
+    toc_depth: 4
+    toc_float: true
+    theme: simplex
+    number_sections: false
+---
+
+```{r global_options, include = FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+```
+
+<font size="5" style="color:blue"> first example: classifying households into owners or nonowners </font> 
+
+### 1 create a data frame 
+```{r}
+# load the data 
+mower.df <- read.csv("RidingMowers.csv")
+head(mower.df)
+
+# convert a character variable to a categorical variable 
+mower.df$Ownership <- as.factor(mower.df$Ownership)
+```
+
+### 2 run a classification tree for riding mower data 
+
+#### 2.1 run a classification tree 
+```{r}
+library(rpart)
+class.tree <- rpart(Ownership ~ ., data = mower.df, method = "class", maxdepth = 2)
+# maxdepth: the maximum depth of any node of the final tree, with the root node counted as depth 0
+```
+
+#### 2.2 plot the tree
+```{r}
+library(rpart.plot)
+
+# type=1: label all nodes, not just leaves
+# extra=1: display the number of observations that fall in the node
+prp(class.tree, type = 1, extra = 1)
+```
+
+<font size="5" style="color:blue"> second example: classifying customers into acceptors and nonacceptors  </font> 
+
+### 3 create a data frame 
+```{r}
+# load the data
+bank.df <- read.csv("UniversalBank.csv")
+head(bank.df)
+
+# drop ID and zip code columns.
+bank.df <- bank.df[ , -c(1, 5)]  
+head(bank.df)
+
+# convert numeric variables to categorical variables 
+bank.df$Education <- as.factor(bank.df$Education)
+
+bank.df$Personal.Loan <- as.factor(bank.df$Personal.Loan)
+head(bank.df)
+```
+
+### 4 data partition
+```{r}
+# total number of rows
+dim(bank.df)[1]
+
+# size of the training set 
+dim(bank.df)[1]*0.6
+
+# set seed 
+set.seed(1)  
+
+# row index of the training set 
+train.index <- sample(c(1:dim(bank.df)[1]), dim(bank.df)[1]*0.6)  
+head(train.index)
+
+# training set 
+train.df <- bank.df[train.index, ]
+head(train.df)
+
+# test set 
+test.df <- bank.df[-train.index, ]
+head(test.df)
+```
+
+### 5 run a classification tree using the default parameters 
+
+#### 5.1 run a classification tree on the training set 
+```{r}
+default.ct <- rpart(Personal.Loan ~ ., data = train.df, method = "class")
+```
+
+#### 5.2 plot tree
+```{r}
+# type=1: label all nodes, not just leaves
+# extra=1: display the number of observations that fall in the node
+prp(default.ct, type = 1, extra = 1)
+```
+
+#### 5.3 predicted classes for records in the test set 
+```{r}
+default.ct.point.pred.test <- predict(default.ct,test.df,type = "class")
+# type = "class": generate predicted classes 
+
+# categorical values 
+head(default.ct.point.pred.test)
+```
+
+#### 5.4 create a confusion matrix for the test set
+```{r}
+# actual classes (categorical values)
+head(test.df$Personal.Loan)
+
+# confusion matrix 
+# positive specifies the class that corresponds to a positive result 
+library(caret)
+confusionMatrix(default.ct.point.pred.test, test.df$Personal.Loan, positive = "1")
+```
+
+### 6 run a full-grown tree
+
+#### 6.1 run a classification tree on the training set
+```{r}
+deeper.ct <- rpart(Personal.Loan ~ ., data = train.df, method = "class", cp = 0, minsplit = 1)
+# complexity parameter(cp): the smallest value of the complexity parameter
+# minsplit: the minimum number of observations that must exist in a node in order for a split to be attempted.
+```
+
+#### 6.2 count number of terminal and decision nodes
+```{r}
+# node names 
+# leaf nodes are denoted by the level "<leaf>"
+deeper.ct$frame$var
+
+# number of terminal nodes 
+sum(deeper.ct$frame$var == "<leaf>")
+
+# number of decision nodes 
+sum(deeper.ct$frame$var != "<leaf>")
+```
+
+#### 6.3 plot tree 
+```{r}
+# type=1: label all nodes, not just leaves
+# extra=1;display the number of observations that fall in the node
+prp(deeper.ct, type = 1, extra = 1)
+```
+
+#### 6.4 classify records for records in the test set 
+```{r}
+deeper.ct.point.pred.test <- predict(deeper.ct,test.df,type = "class")
+# type = "class": generate predicted class membership
+
+# categorical values 
+head(deeper.ct.point.pred.test)
+```
+
+#### 6.5 create a confusion matrix for the test set 
+```{r}
+confusionMatrix(deeper.ct.point.pred.test, test.df$Personal.Loan, positive = "1")
+```
+
+### 7 table of complexity parameter values and associated tree errors 
+
+#### 7.1 tabulate tree error
+```{r}
+set.seed(1)
+cv.ct <- rpart(Personal.Loan ~ ., data = train.df, method = "class", cp = 0.00001, minsplit = 5, xval = 5)
+# complexity parameter(cp): the smallest value of the complexity parameter
+# minsplit: the minimum number of observations that must exist in a node in order for a split to be attempted
+# xval: number of cross-validations
+```
+
+#### 7.2 display the cp table 
+```{r}
+cv.ct$cptable
+
+# xerror values 
+cv.ct$cptable[,"xerror"]
+
+# row with the minimum xerror
+which.min(cv.ct$cptable[,"xerror"])
+
+# CP value of the row with the minimum xerror 
+cv.ct$cptable[which.min(cv.ct$cptable[,"xerror"]),"CP"]
+```
+
+### 8 best-pruned tree  
+
+#### 8.1 prune the tree
+```{r}
+pruned.ct <- prune(cv.ct, cp = cv.ct$cptable[which.min(cv.ct$cptable[,"xerror"]),"CP"])
+```
+
+#### 8.2 count number of terminal and decision nodes  
+```{r}
+# node names 
+# leaf nodes are denoted by the level "<leaf>"
+pruned.ct$frame$var
+
+# number of terminal nodes 
+sum(pruned.ct$frame$var == "<leaf>")
+
+# number of decision nodes 
+sum(pruned.ct$frame$var != "<leaf>")
+```
+
+#### 8.3 plot the tree
+```{r}
+# type=1: label all nodes, not just leaves
+# extra=1;display the number of observations that fall in the node
+prp(pruned.ct, type = 1, extra = 1)
+```
+
+#### 8.4 classify records in the test set 
+```{r}
+pruned.ct.point.pred.test <- predict(pruned.ct,test.df,type = "class")
+# type = "class": generate predicted class membership
+
+# categorical values 
+head(pruned.ct.point.pred.test)
+```
+
+#### 8.5 create a confusion matrix for the test set 
+```{r}
+confusionMatrix(pruned.ct.point.pred.test, test.df$Personal.Loan, positive = "1")
+```

@@ -1,0 +1,227 @@
+---
+title: "Lecture 3: Data Wrangling"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    theme: simplex
+    number_sections: false
+---
+
+```{r global_options, include = FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+```
+
+## 1 create and subset a data frame
+
+### create a data frame 
+```{r}
+manager <- c("Timothy D. Cook", "D. Bruce Sewell")
+salary_in_thousand <- c(2000, 1000)
+X <- data.frame(EXEC_FULLNAME = manager, SALARY = salary_in_thousand)
+X
+```
+
+### select a column as a vector 
+```{r}
+X$EXEC_FULLNAME
+X[['EXEC_FULLNAME']]
+X[[1]]
+X[,'EXEC_FULLNAME']
+X[,1]
+```
+
+### select a column as a data frame 
+```{r}
+X['EXEC_FULLNAME']
+X[1]
+```
+
+## 2 create and subset a tibble
+
+### create a tibble 
+```{r}
+library(tidyverse)
+Y <- tibble(EXEC_FULLNAME = manager, SALARY = salary_in_thousand)
+Y
+```
+
+### select a column as a vector 
+```{r}
+Y$EXEC_FULLNAME
+Y[['EXEC_FULLNAME']]
+Y[[1]]
+```
+
+### select a column as a tibble 
+```{r}
+Y['EXEC_FULLNAME']
+Y[1]
+
+# Matrix subsetting does NOT simplify output if only one column is selected
+Y[,'EXEC_FULLNAME']
+Y[,1]
+```
+
+## 3 join data 
+```{r}
+# create a tibble 
+Z <- tibble(EXEC_FULLNAME =c("Timothy D. Cook", "Luca Maestri"), BONUS = c(0,0))
+Z
+
+# left join 
+left_join(Y, Z, by = "EXEC_FULLNAME")
+
+# right join 
+right_join(Y, Z, by = "EXEC_FULLNAME")
+
+# inner join 
+inner_join(Y, Z, by = "EXEC_FULLNAME")
+
+# full join 
+full_join(Y, Z, by = "EXEC_FULLNAME")
+```
+
+## 4 create a tibble 
+```{r}
+# load the data 
+df <- read_csv("manager.csv")
+
+# first six rows 
+head(df)
+
+# number of rows and columns 
+dim(df)
+nrow(df)
+ncol(df)
+
+# column names 
+names(df)
+
+# variable types 
+str(df)
+```
+
+## 5 subset data 
+
+### select one column 
+```{r, results = "hide"}
+# as a vector 
+df$EXEC_FULLNAME
+df[['EXEC_FULLNAME']]
+df[[7]]
+
+# as a tibble 
+df['EXEC_FULLNAME']
+df[7]
+df[,'EXEC_FULLNAME']
+df[,7]
+select(df,EXEC_FULLNAME)
+```
+
+### select two columns 
+```{r, results = "hide"}
+df[,c("EXEC_FULLNAME","SALARY")]
+df[,c(7,9)]
+select(df,EXEC_FULLNAME,SALARY)
+```
+
+### select five rows and two columns
+```{r}
+df[c(1:5),c("EXEC_FULLNAME","SALARY")]
+df[c(1:5),c(7,9)]
+```
+
+## 6 filter rows  
+
+### filter rows 
+```{r}
+# executives of AAPL in 2015
+df$YEAR==2015 & df$TICKER=="AAPL"
+df[df$YEAR==2015 & df$TICKER=="AAPL",]
+filter(df,YEAR==2015, TICKER=="AAPL")
+
+# executives with the minimum salary
+min(df$SALARY)
+df$SALARY==min(df$SALARY)
+df[df$SALARY==min(df$SALARY),]
+filter(df,SALARY==min(SALARY))
+```
+
+### filter rows and select columns 
+```{r}
+# name and salary of executives of AAPL in 2015
+df[df$YEAR==2015 & df$TICKER=="AAPL",c("EXEC_FULLNAME","SALARY")]
+```
+
+## 7 arrange rows 
+```{r}
+# ascending order of TDC1 
+arrange(df,TDC1)
+
+# descending order of TDC1 
+arrange(df,desc(TDC1))
+
+# ascending order of TICKER and YEAR, and descending order of TDC1 
+arrange(df,TICKER, YEAR, desc(TDC1))
+
+# does not modify df in place 
+df
+
+# modify df in place 
+df<- arrange(df,TICKER, YEAR, desc(TDC1))
+df
+```
+
+## 8 add a column 
+
+### 8.1 salary plus bonus 
+```{r}
+df$SALRAY_BONUS<-df$SALARY+df$BONUS
+head(df)
+```
+
+### 8.2 salary bin numbers  
+```{r}
+# identify the thresholds of 5 equal width bins 
+bins <- seq(min(df$SALARY), max(df$SALARY), (max(df$SALARY) - min(df$SALARY))/5)
+# 6 thresholds 
+bins
+
+# bin SALARY  
+df$SALARY_bin <- .bincode(df$SALARY, bins, include.lowest = TRUE)
+
+# frequency counts of unique values
+table(df$SALARY_bin)
+```
+
+### 8.3 salary intervals 
+```{r}
+df$SALARY_cut <- cut(df$SALARY, 5)
+
+# frequency counts of unique values
+table(df$SALARY_cut)
+
+# not display scientific notation 
+format(1.22e+03, scientific = FALSE)
+```
+
+### 8.4 salary and bonus in dollars 
+```{r}
+# does not modify df in place 
+mutate(df,SALRAY_1000=SALARY*1000,BONUS_1000=BONUS*1000)
+head(df)
+```
+
+```{r}
+# modify df in place 
+df <- mutate(df,SALRAY_1000=SALARY*1000,BONUS_1000=BONUS*1000)
+head(df)
+```
+
+```{r}
+# drop a column
+df$SALRAY_BONUS<-NULL
+head(df)
+```

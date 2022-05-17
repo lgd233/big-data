@@ -1,0 +1,188 @@
+---
+title: "Lecture 16: Neural Nets"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    theme: simplex
+    number_sections: false
+---
+
+```{r global_options, include = FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+```
+
+<font size="5" style="color:blue"> first example: predicting customers’ preference (binary outcome)  </font> 
+
+## 1 create a data frame 
+```{r}
+# load the data
+df <- read.csv("TinyData.csv")
+
+# create two outcome dummies  
+df$Like <- df$Preference=="like"
+df$Dislike <- df$Preference=="dislike"
+
+df
+```
+
+## 2 neural network with a single hidden layer 
+```{r}
+library(neuralnet)
+
+set.seed(1)
+nn1<- neuralnet(Like + Dislike ~ x2 + x1, data = df, linear.output = FALSE, hidden = 3)
+# hidden: a vector of integers specifying the number of hidden neurons in each layer
+# linear.output=TRUE for regression and linear.output=FALSE for classification
+
+# display weights
+nn1$weights
+
+# plot the network 
+# rep="best": the repetition of the neural network with the smallest error will be plotted
+plot(nn1, rep = "best")
+
+# display the activation function
+nn1$act.fct
+```
+
+## 3 making predictions
+
+### 3.1 predictions for a data set  
+```{r}
+# create a data frame 
+data.frame(df$x2, df$x1)
+
+predict <- compute(nn1, data.frame(df$x2, df$x1))
+```
+
+### 3.2 predicted probabilities (almost)
+```{r}
+predict$net.result
+
+# predicted probabilities of like 
+predict$net.result[,1]
+
+# predicted probabilities of dislike 
+predict$net.result[,2]
+```
+
+### 3.3 predicted classes
+```{r}
+predicted.class <- ifelse(predict$net.result[,2]>predict$net.result[,1], "dislike", "like")
+predicted.class
+```
+
+### 3.4 confusion matrix 
+```{r}
+# predicted classes are character values  
+predicted.class
+
+# actual classes are character values 
+df$Preference
+
+library(caret)
+confusionMatrix(as.factor(predicted.class), as.factor(df$Preference),positive="like")
+```
+<font size="5" style="color:blue"> second example: predicting prices of used Toyota Corollas </font> 
+
+## 4 create a data frame 
+
+### 4.1 load the data 
+```{r}
+toyota.df <- read.csv("ToyotaCorolla.csv")
+head(toyota.df)
+```
+
+### 4.2 transforming Fuel_Type into 2 dummies 
+```{r}
+# Fuel_Type has 3 levels   
+toyota.df$Fuel_Type_CNG <- ifelse(toyota.df$Fuel_Type == "CNG",1,0)
+toyota.df$Fuel_Type_Diesel <- ifelse(toyota.df$Fuel_Type == "Diesel",1,0)
+```
+
+### 4.3 data partition
+```{r}
+set.seed(1)
+
+# total number of rows 
+dim(toyota.df)[1]
+
+# number of rows to select for the training set 
+0.6*dim(toyota.df)[1]
+
+# row indexes of the training set
+train.index <- sample(c(1:dim(toyota.df)[1]), 0.6*dim(toyota.df)[1])  
+head(train.index)
+
+# training set
+train.df <- toyota.df[train.index, ]
+head(train.df)
+
+# test set 
+test.df <- toyota.df[-train.index, ]
+head(test.df)
+```
+
+### 4.4 scale the numerical predictors and the outcome variable 
+```{r}
+# maximum price in the training set 
+max(train.df$Price)
+
+# minimum price in the training set 
+min(train.df$Price)
+
+# training set 
+head(train.df$Price)
+
+# normalized price for the first record 
+(9250-min(train.df$Price))/(max(train.df$Price)-min(train.df$Price))
+
+# estimate the transformation 
+library(caret)
+norm.values <- preProcess(train.df, method="range")
+# method="range": scale the data to the interval between zero and one
+
+# normalize the numerical predictors and the outcome variable in the training set 
+train.norm.df <- predict(norm.values, train.df)
+# Price, Age_08_04, KM, HP, Doors, Quarterly_Tax, Guarantee_Period are normalized 
+head(train.norm.df)
+
+# normalize the numerical predictors and the outcome variable in the test set 
+test.norm.df <- predict(norm.values, test.df)
+head(test.norm.df)
+```
+
+## 5 single hidden layer with 2 nodes 
+
+### 5.1 fit a neural network on the training set 
+```{r}
+# set the seed for reproducing the result 
+set.seed(1)
+
+nn2 <- neuralnet(Price ~ Age_08_04+KM+Fuel_Type_CNG+Fuel_Type_Diesel+HP+Automatic+Doors+Quarterly_Tax+Mfr_Guarantee
+                +Guarantee_Period+Airco+Automatic_airco+CD_Player+Powered_Windows+Sport_Model+Tow_Bar, 
+                data = train.norm.df, linear.output = TRUE, hidden = 2)
+# hidden: a vector of integers specifying the number of hidden neurons in each layer
+# linear.output=TRUE for regression and linear.output=FALSE for classification
+```
+
+### 5.2 plot the network
+```{r}
+# rep="best": the repetition of the neural network with the smallest error will be plotted
+plot(nn2, rep = "best")
+```
+
+### 5.3 making predictions for records in the test set 
+```{r}
+predict.nn2 <- compute(nn2, test.norm.df)
+
+# predicted prices (normalized)
+head(predict.nn2$net.result)
+```
+
+### 5.4 prediction error on the test set
+```{r}
+mean((test.norm.df$Price-predict.nn2$net.result)^2)
+```

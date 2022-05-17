@@ -1,0 +1,180 @@
+---
+title: "Lecture 10: Variable Selection"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    theme: simplex
+    number_sections: false
+---
+
+```{r global_options, include = FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+```
+
+## 1 linear regression model of price and car attributes 
+
+### 1.1 create a data frame
+```{r}
+# read the data 
+df <- read.csv("ToyotaCorolla.csv")
+head(df)
+
+# use first 1000 rows of data
+df <- df[1:1000, ]
+head(df)
+
+# select variables for regression
+selected.var <- c(3, 4, 7, 8, 9, 10, 12, 13, 14, 17, 18)
+df[1:5, selected.var]
+```
+
+### 1.2 Partition data into training and test sets 
+```{r}
+# set seed for reproducing the partition
+set.seed(1) 
+
+# the total number of rows  
+dim(df)[1]
+
+# sample size for the training set 
+dim(df)[1]*0.6
+
+# take a sample of row numbers 
+train.index <- sample(c(1:dim(df)[1]), dim(df)[1]*0.6)  
+head(train.index)
+
+# training set 
+train.df <- df[train.index, selected.var]
+head(train.df)
+
+# test set 
+test.df <- df[-train.index, selected.var]
+head(test.df)
+```
+
+## 2 run a linear regression of Price with all 11 predictors on the training set
+
+### 2.1 use . after ~ to include all the remaining columns in train.df as predictors
+```{r}
+lm <- lm(Price ~ ., data = train.df)
+summary(lm)
+```
+
+### 2.2 predictions and measuring prediction error 
+```{r}
+# use predict() to make predictions on the test set 
+lm.pred <- predict(lm, test.df)
+head(lm.pred)
+
+# MSE in the test set 
+mean((test.df$Price-lm.pred)^2)
+```
+
+## 3 exhaustive search for reducing predictors 
+
+### 3.1 create dummies for fuel type 
+Unlike with lm, categorical predictors must be turned into dummies manually. We will create a design matrix by expanding factors to a set of dummies variables. 
+```{r}
+# using the training data 
+head(model.matrix(~ 0+Fuel_Type, data=train.df))
+
+# turn the matrix into a data frame 
+Fuel_Type_train <- as.data.frame(model.matrix(~ 0+Fuel_Type, data=train.df))
+head(Fuel_Type_train)
+
+# drop one level 
+head(Fuel_Type_train[,-1])
+
+# replace Fuel_Type column with 2 dummies 
+train.df <- cbind(train.df[,-4], Fuel_Type_train[,-1])
+head(train.df)
+
+# repeat it using the test data 
+Fuel_Type_test <- as.data.frame(model.matrix(~ 0+Fuel_Type, data=test.df))
+test.df <- cbind(test.df[,-4], Fuel_Type_test[,-1])
+head(test.df)
+```
+
+### 3.2 use regsubsets() in package leaps to run an exhaustive search 
+```{r}
+library(leaps)
+search <- regsubsets(Price ~ ., data = train.df, nbest = 1, nvmax = 11, method = "exhaustive")
+# nbest: number of subsets of each size to record
+# nvmax: maximum size of subsets to examine
+
+# data frame has 12 columns or 11 predictors 
+dim(train.df)
+dim(train.df)[2]
+
+# summary 
+sum <- summary(search)
+
+# show models
+sum$which
+
+# show metrics
+sum$adjr2
+```
+Adjusted r squared increases and then stabilizes. 
+
+## 4 backward elimination for reducing predictors
+
+### 4.1 backward elimination 
+```{r}
+# create a model with all predictors 
+lm.full <- lm(Price ~ ., data = train.df)
+lm.full
+
+lm.step.backward <- step(lm.full, direction = "backward")
+summary(lm.step.backward)  
+```
+
+### 4.2 making predictions and measuring prediction error 
+```{r}
+lm.step.pred.backward <- predict(lm.step.backward, test.df)
+head(lm.step.pred.backward)
+
+# MSE in the test set 
+mean((test.df$Price-lm.step.pred.backward)^2)
+```
+
+## 5 forward selection for reducing predictors 
+
+### 5.1 forward selection 
+```{r}
+# create model with no predictors
+lm.null <- lm(Price~1, data = train.df)
+lm.null
+
+lm.step.forward <- step(lm.null, scope=list(lower=lm.null, upper=lm.full), direction = "forward")
+summary(lm.step.forward)  
+```
+
+### 5.2 making predictions and measuring prediction error  
+```{r}
+lm.step.pred.forward <- predict(lm.step.forward, test.df)
+head(lm.step.pred.forward)
+
+# MSE in the test set 
+mean((test.df$Price-lm.step.pred.forward)^2)
+```
+
+## 6 stepwise regression for reducing predictors 
+
+### 6.1 stepwise regression  
+```{r}
+lm.step.both <- step(lm.full, direction = "both")
+summary(lm.step.both) 
+```
+
+### 6.2 making predictions and measuring prediction error  
+```{r}
+lm.step.pred.both <- predict(lm.step.both, test.df)
+head(lm.step.pred.both)
+
+# MSE in the test set 
+mean((test.df$Price-lm.step.pred.both)^2)
+```
+the results for backward elimination, forward selection, and stepwise regression are the same in this example 

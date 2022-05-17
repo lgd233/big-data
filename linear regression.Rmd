@@ -1,0 +1,192 @@
+---
+title: "Lecture 7: Linear Regression"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    theme: simplex
+    number_sections: false
+---
+
+```{r global_options, include = FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+```
+
+### not display scientific notation
+```{r}
+# scipen: a penalty to be applied when deciding to print numeric values in fixed or exponential notation. 
+# positive values bias towards fixed and negative towards scientific notation
+options(scipen=999)
+```
+
+## create a data frame 
+```{r}
+# read data from a csv file 
+housing.df <- read.csv("ameshousing.csv")
+
+# first six rows 
+head(housing.df)
+
+# column names 
+names(housing.df)
+
+# summary statistics 
+summary(housing.df)
+```
+
+## 1 intercept only linear model  
+```{r}
+# intercept only model where the outcome is Sale Price
+lm1 <- lm(SalePrice ~ 1, data = housing.df)
+summary(lm1)
+
+# coefficient is the mean 
+mean(housing.df$SalePrice)
+```
+
+## 2 model with a numeric (continuous) predictor 
+```{r}
+# linear regression of Sale Price on above ground living area 
+lm2 <- lm(SalePrice ~ Gr_Liv_Area, data = housing.df)
+summary(lm2)
+
+# predicted values
+head(lm2$fitted.values)
+
+# plot the actual and predicted values 
+library(ggplot2)
+ggplot(housing.df, aes(x = Gr_Liv_Area, y = SalePrice)) + geom_point(color="grey",size=2) + 
+  geom_line(aes(x = Gr_Liv_Area, y=lm2$fitted.values), color="blue")
+```
+
+the parameter estimate for the intercept is 18583.434;
+the parameter estimate for the slope of Gr_Liv_Area is 105.189;
+the regression equation is Sale Price=18583.434+105.189*Gr_Liv_Area;
+the model indicates that each additional square foot of Gr_Liv_Area is associated with an approximately $105.189  higher sale price.
+
+## 3 model with a numeric (discrete) predictor  
+```{r}
+# linear regression of Sale Price on the number of Bedroom above the ground 
+lm3 <- lm(SalePrice ~ Bedroom_AbvGr, data = housing.df)
+summary(lm3)
+```
+
+## 4 model with an ordinal categorical predictor with character values   
+
+### 4.1 character values are automatically converted to dummies in regressions 
+```{r}
+# four levels (character values)
+table(as.factor(housing.df$Heating_QC))
+
+# character values are automatically converted to dummies (Heating_QCFa, Heating_QCGd, Heating_QCTA) in regressions 
+lm4a <- lm(SalePrice ~ Heating_QC, data = housing.df)
+# compared to Ex (the first level)
+summary(lm4a)
+
+# mean of Sale Price for each value in Heating_QC
+tapply(housing.df$SalePrice, housing.df$Heating_QC, mean)
+# Fa - Ex
+97119-154919
+# Gd - Ex
+130844-154919
+# TA - Ex
+130574-154919
+
+# plot the mean of Sale Price for each value in Heating_QC
+ggplot(housing.df, aes(x=Heating_QC, y=SalePrice)) + 
+  geom_bar(stat = "summary", fun = "mean")
+```
+
+### 4.2 convert Heating_QC to a categorical variable first 
+```{r}
+lm4b <- lm(SalePrice ~ as.factor(Heating_QC), data = housing.df)
+summary(lm4b)
+```
+
+### 4.3 create a design matrix by expanding factors to a set of dummies variables  
+```{r}
+# 0: without intercept 
+head(model.matrix(~ 0+Heating_QC, data = housing.df))
+
+# turn the matrix into a data frame 
+Heating_QC_dummy <- as.data.frame(model.matrix(~ 0+Heating_QC, data = housing.df))
+head(Heating_QC_dummy)
+
+# four levels need 3 dummies 
+head(Heating_QC_dummy[,-1])
+
+# combine the data frames 
+housing.df <- cbind(housing.df, Heating_QC_dummy[,-1])
+head(housing.df)
+
+# fit a linear regression of Sale Price on three dummies 
+lm4c <- lm(SalePrice ~ Heating_QCFa+Heating_QCGd+Heating_QCTA, data = housing.df)
+summary(lm4c)
+```
+## 5 model with a nominal categorical predictor with numeric values 
+
+### 5.1 numeric values will not be automatically converted to dummies
+```{r}
+# four levels (numeric values)
+table(as.factor(housing.df$Season_Sold))
+
+# numeric values will not be automatically converted to dummies
+lm5a <- lm(SalePrice ~ Season_Sold, data = housing.df)
+# wrong result 
+summary(lm5a)
+```
+
+### 5.2 convert Season_Sold to a categorical variable first
+```{r}
+lm5b <- lm(SalePrice ~ as.factor(Season_Sold), data = housing.df)
+summary(lm5b)
+
+# mean of Sale Price for each value in Season_Sold
+tapply(housing.df$SalePrice, housing.df$Season_Sold, mean)
+# 2 - 1 (spring - winter)
+140879-120917
+# 3-1 (summer - winter)
+137410-120917
+# 4-1 (fall - winter)
+144977-120917
+
+# plot the mean of Sale Price for each value in Season_Sold_cat
+ggplot(housing.df,aes(x=Season_Sold, y=SalePrice)) + 
+  geom_bar(stat = "summary", fun = "mean")
+```
+
+## 6 model with numeric and categorical predictors 
+```{r}
+# linear regression of Sale Price on Gr_Liv_Area and Heating_QC
+lm6 <- lm(SalePrice ~ Gr_Liv_Area+as.factor(Heating_QC), data = housing.df)
+summary(lm6)
+```
+
+## 7 non-linear model with polynomial predictors  
+
+### 7.1 use poly()
+```{r}
+lm7a <- lm(SalePrice ~ poly(Gr_Liv_Area, 2, raw = TRUE), data = housing.df)
+# raw polynomial terms
+summary(lm7a)
+
+# predicted values 
+head(lm7a$fitted.values)
+
+# plot the actual and predicted values 
+ggplot(housing.df, aes(x = Gr_Liv_Area, y = SalePrice)) + geom_point(color="grey",size=2) + 
+  geom_line(aes(x = Gr_Liv_Area, y=lm7a$fitted.values), color="blue")
+```
+
+### 7.2 create a new variable 
+```{r}
+# square Gr_Liv_Area
+housing.df$Gr_Liv_Area_sqr <- housing.df$Gr_Liv_Area^2
+head(housing.df$Gr_Liv_Area)
+head(housing.df$Gr_Liv_Area_sqr)
+
+# regression of Sale Price on Gr_Liv_Area and Gr_Liv_Area_sqr
+lm7b <- lm(SalePrice ~ Gr_Liv_Area+Gr_Liv_Area_sqr, data = housing.df)
+summary(lm7b)
+```

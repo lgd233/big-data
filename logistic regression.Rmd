@@ -1,0 +1,238 @@
+---
+title: "Lecture 8: Logistic Regression"
+output:
+  html_document:
+    toc: true
+    toc_depth: 4
+    toc_float: true
+    theme: simplex
+    number_sections: false
+---
+
+```{r global_options, include = FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+```
+
+### not display scientific notation
+```{r}
+# scipen: a penalty to be applied when deciding to print numeric values in fixed or exponential notation. 
+# positive values bias towards fixed and negative towards scientific notation
+options(scipen=999)
+```
+
+## 1 creating a data frame 
+
+### 1.1 data pre-processing 
+```{r}
+bank.df <- read.csv("UniversalBank.csv")
+head(bank.df)
+
+# drop ID and zip code columns
+bank.df <- bank.df[ , -c(1, 5)]  
+head(bank.df)
+
+# numeric values
+head(bank.df$Education)
+
+# as.factor() coerces its argument to a factor 
+head(as.factor(bank.df$Education))
+
+# convert Education from a numeric variable to a categorical or factor variable 
+bank.df$Education <- factor(bank.df$Education, levels = c(1, 2, 3), 
+                            labels = c("Undergrad", "Graduate", "Advanced/Professional"))
+# levels: unique values in the vector of data 
+# labels: character vector of labels for the levels 
+# logistic regression will automatically create two dummy variables from the factor's three levels 
+
+head(bank.df$Education)
+
+# Education is a categorical or factor variable
+str(bank.df)
+```
+
+### 1.2 partition data  
+```{r}
+# the total number of rows and columns 
+dim(bank.df)
+
+# the total number of rows  
+dim(bank.df)[1]
+
+# sample size of the training set 
+dim(bank.df)[1]*0.6
+
+# set seed for reproducing the partition 
+set.seed(2)
+
+# take a sample of row numbers 
+train.index <- sample(c(1:dim(bank.df)[1]), dim(bank.df)[1]*0.6)  
+head(train.index)
+
+# subset the data frame by extracting rows 
+train.df <- bank.df[train.index, ]
+head(train.df)
+
+test.df <- bank.df[-train.index, ]
+head(test.df)
+```
+
+## 2 fitting a logistic regression model with a single predictor 
+
+### 2.1 use glm() with family = "binomial" to fit a logistic regression
+```{r}
+# glm: general linear model
+logit.reg.income <- glm(Personal.Loan ~ Income, data = train.df, family = "binomial") 
+summary(logit.reg.income)
+```
+
+### 2.2 predict for a new customer with $100,000K income 
+
+#### calculate the probability manually 
+```{r}
+# estimated coefficients
+logit.reg.income$coefficients
+
+# logit 
+1*(-6.27275)+100*0.03840
+
+# or matrix multiplication 
+logit <- c(1, 100) %*% logit.reg.income$coefficients
+logit
+
+# probability 
+prob <- 1/(1+exp(-logit))
+prob
+```
+
+#### use the predict function (input should be a data frame)
+```{r}
+# create a data frame 
+new <- data.frame(Income=100)
+new
+
+# type = "response" computes the predicted probability 
+predict(logit.reg.income, new, type = "response")
+
+# type = "link" computes logit(p)
+predict(logit.reg.income, new, type = "link")
+```
+
+### 2.3 generate predicted probabilities
+```{r}
+logit.reg.income.pred <- predict(logit.reg.income, test.df, type = "response")
+head(logit.reg.income.pred)
+```
+
+### 2.4 create a confusion matrix
+```{r}
+# predicted classes (numeric)
+head(ifelse(logit.reg.income.pred > 0.5, 1, 0))
+
+# actual classes (numeric)
+head(test.df$Personal.Loan)
+
+# predicted classes (factor)
+head(as.factor(ifelse(logit.reg.income.pred > 0.5, 1, 0)))
+
+# actual classes (factor)
+head(as.factor(test.df$Personal.Loan))
+
+# load the package 
+library(caret)
+
+# confusion matrix 
+confusionMatrix(as.factor(ifelse(logit.reg.income.pred > 0.5, 1, 0)), as.factor(test.df$Personal.Loan),positive = "1")
+
+# accuracy rate
+(1746+65) / (1746+123+66+65) 
+```
+
+## 3 logistic regression model with 12 predictors 
+
+### 3.1 use glm() with family = "binomial" to fit a logistic regression
+```{r}
+logit.reg <- glm(Personal.Loan ~ ., data = train.df, family = "binomial") 
+summary(logit.reg)
+```
+customers who are high earners, have a large family , and spend a lot of money on credit card tend more to accept the offer; 
+having graduate or professional education and holding a CD account are associated with higher probabilities of accepting the loan offer;
+using online banking and owning a Universal Bank credit card are associated with lower acceptance rates.
+
+
+### 3.2 compute predicted probabilities 
+```{r}
+logit.reg.pred <- predict(logit.reg, test.df, type = "response")
+head(logit.reg.pred)
+```
+the first six customers are classified as nonacceptors (0) becuase the probability of accepting the offer is lower than the cutoff of 0.5
+
+### 3.3 create confusion matrix 
+```{r}
+# predicted classes (numeric)
+head(ifelse(logit.reg.pred > 0.5, 1, 0))
+
+# actual classes (numeric)
+head(test.df$Personal.Loan)
+
+# predicted classes (factor)
+head(as.factor(ifelse(logit.reg.pred > 0.5, 1, 0)))
+
+# actual classes (factor)
+head(as.factor(test.df$Personal.Loan))
+
+# confusion matrix  
+confusionMatrix(as.factor(ifelse(logit.reg.pred > 0.5, 1, 0)), as.factor(test.df$Personal.Loan),positive = "1")
+
+# accuracy rate 
+(1794+123) / (1794+65+18+123) 
+```
+
+### 3.4 create a lift chart  
+
+#### constructs a gains table
+```{r}
+head(test.df$Personal.Loan)
+head(logit.reg.pred)
+
+# constructs a gains table to evaluate the performance 
+library(gains)
+# inputs are a vector of actual responses and a vector of predicted probabilities 
+gain <- gains(test.df$Personal.Loan, logit.reg.pred, groups=10)
+
+# cumulative percentage of acceptors 
+gain$cume.pct.of.total
+
+# total number of acceptors 
+sum(test.df$Personal.Loan)
+
+# cumulative number of acceptors 
+gain$cume.pct.of.total*sum(test.df$Personal.Loan)
+
+# y axis values 
+c(0,gain$cume.pct.of.total*sum(test.df$Personal.Loan))
+
+# cumulative number of customers 
+gain$cume.obs
+
+# x axis values 
+c(0,gain$cume.obs)
+```
+
+#### plot a lift chart
+```{r}
+plot(c(0,gain$cume.pct.of.total*sum(test.df$Personal.Loan))~c(0,gain$cume.obs), 
+     xlab="cumulative number of customers", ylab="cumulative number of acceptors", type="l")
+
+# y axis values 
+c(0,sum(test.df$Personal.Loan))
+
+dim(test.df)[1]
+
+# x axis values 
+c(0, dim(test.df)[1])
+
+# add a baseline curve 
+lines(c(0,sum(test.df$Personal.Loan))~c(0, dim(test.df)[1]))
+```
+
+
